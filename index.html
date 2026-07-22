@@ -909,8 +909,57 @@ const RP_AYAAN = `<div class="rp"><div class="rp-tag">Your role at Syntech Recru
 const RP_JADE = `<div class="rp"><div class="rp-tag">Your role at Syntech Recruitment</div><div class="off-badge">&#127760; Remote / Offshore Delivery</div><div class="rp-title">Delivery Consultant</div><div class="rp-sub">Jade joins the team in week 2. Her specific role scope, client base and company focus are currently being confirmed \u2014 this will be updated before she starts.<br><br>The fundamentals in this training plan are the blueprint for any delivery consultant who wants to bill \u00a320k+ per month.</div><div class="rp-grid"><div class="rp-item"><div class="rp-item-label">Role</div><div class="rp-item-val">Delivery Consultant</div></div><div class="rp-item"><div class="rp-item-label">Line manager</div><div class="rp-item-val">Zac</div></div><div class="rp-item"><div class="rp-item-label">Working model</div><div class="rp-item-val">Remote / Offshore</div></div><div class="rp-item"><div class="rp-item-label">Start date</div><div class="rp-item-val">Week 2</div></div><div class="rp-item"><div class="rp-item-label">Client / scope</div><div class="rp-item-val">TBC</div></div><div class="rp-item"><div class="rp-item-label">The goal</div><div class="rp-item-val">\u00a320k+ per month</div></div></div></div>`;
 
 let CUR='aya',S={};
-function ld(){try{const d=localStorage.getItem('syt5');if(d)S=JSON.parse(d);}catch(e){}}
-function sv(){try{localStorage.setItem('syt5',JSON.stringify(S));}catch(e){}}
+
+// ── SUPABASE SHARED STATE ────────────────────────────────────────────────────
+const SB_URL='https://kdorepgtvgwumdggjzqm.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkb3JlcGd0dmd3dW1kZ2dqenFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3OTI4MTksImV4cCI6MjA4NzM2ODgxOX0.bv0NLZujyaGPfvOinVq_zeuED0RcReVLupoQlP-3voI';
+const SB_TABLE='training_progress';
+
+async function sbFetch(method,body){
+  const opts={method,headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}};
+  if(body)opts.body=JSON.stringify(body);
+  const res=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?select=*',opts);
+  return res.ok?res.json():null;
+}
+async function sbUpsert(key,val){
+  await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'resolution=merge-duplicates'},
+    body:JSON.stringify({key,value:JSON.stringify(val)})
+  });
+}
+async function sbDelete(prefix){
+  await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?key=like.'+encodeURIComponent(prefix+'%'),{
+    method:'DELETE',
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+  });
+}
+
+async function ld(){
+  try{
+    const res=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?select=key,value',{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    });
+    if(res.ok){
+      const rows=await res.json();
+      S={};
+      rows.forEach(r=>{try{S[r.key]=JSON.parse(r.value);}catch(e){S[r.key]=r.value;}});
+    }
+  }catch(e){console.warn('Supabase load failed',e);}
+}
+
+async function sv(){} // no-op: writes now happen per-action
+
+// Real-time polling: every 8 seconds re-sync state from Supabase
+let _pollTimer=null;
+function startPolling(){
+  if(_pollTimer)return;
+  _pollTimer=setInterval(async()=>{
+    const before=JSON.stringify(S);
+    await ld();
+    if(JSON.stringify(S)!==before)render();
+  },8000);
+}
 function k(id){return CUR+'_'+id;}
 function isChk(id){return!!S[k(id)];}
 function isSgn(sid,p){return!!S[k('so_'+sid+'_'+p)];}
@@ -932,14 +981,58 @@ function renderOverview(){const p=totalProg();const ti=CUR==='aya'?{nm:'Aya',rl:
 function renderPlan(){const stages=STAGES[CUR];const ti=CUR==='aya'?'Aya':'Jade';let h=CUR==='aya'?RP_AYAAN:RP_JADE;stages.forEach((s,i)=>{const lk=s._locked,dn=stageDone(s),c=taskCount(s);let cls='sc';if(dn)cls+=' dn';if(lk)cls+=' lk';h+=`<div class="${cls}" id="${s.id}"><div class="sh" onclick="toggleStage('${s.id}')"><div class="sn">${lk?'&#128274;':dn?'&#10003;':i+1}</div><div style="flex:1"><div class="st">${s.title}</div><div class="ss">${s.sub}</div></div><div style="display:flex;align-items:center;gap:7px;flex-shrink:0"><span class="wt ${s.wc}">${s.wk}</span><span style="font-size:10px;color:var(--td);font-family:var(--m)">${c.dn}/${c.tot}</span></div><svg class="cv" width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><div class="sb2">`;if(lk){h+=`<div style="background:rgba(255,170,0,0.06);border-bottom:1px solid rgba(255,170,0,0.15);padding:8px 16px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--a)"><span>&#128274;</span> Stage locked \u2014 complete the previous stage first.</div>`;}s.pillars.forEach(pl=>{const pd=pl.tasks.filter(t=>isChk(t.id)).length;h+=`<div class="ps"><div class="ph"><div class="pd" style="background:${pl.cl}"></div><div class="pn" style="color:${pl.cl}">${pl.nm}</div><div class="pp">${pd}/${pl.tasks.length}</div></div><div class="tl">`;pl.tasks.forEach(t=>{const ck=isChk(t.id);h+=`<div class="ti${ck?' dn':''}" id="tr-${t.id}"><div class="ck${ck?' on':''}" onclick="doCheck('${t.id}','${s.id}')"></div><div><div class="tx">${t.tx}</div><span class="tg tg-${pl.ow}">${pl.ow==='z'?'zac':pl.ow==='n'?'nick':'steve'}</span><span class="kp">${t.kp}</span></div></div>`;});h+=`</div></div>`;});if(dn)h+=`<div class="cb on">&#10003; Stage complete \u2014 all tasks done and all three managers have signed off.</div>`;h+=`<div class="ks">${s.kpis.map(kp=>`<div class="ki"><div class="kn">${kp.n}</div><div class="kl">${kp.l}</div></div>`).join('')}</div>`;const canSign=allDone(s)&&!lk;const sgnCnt=['z','n','s'].filter(p=>isSgn(s.id,p)).length;const pNm={z:'Zac',n:'Nick',s:'Steve'},pRl={z:'Delivery & Pitch',n:'ATS & Commercial',s:'BD & Quality'},pAv={z:'az',n:'an',s:'as'};h+=`<div class="sg"><div class="sg-t">&#9999; Stage sign-off \u2014 all three managers must approve before progression</div><div class="sg-g">`;['z','n','s'].forEach(p=>{const sg=isSgn(s.id,p),ts=sgnTs(s.id,p);const bc=sg?'on':canSign?'':'off';h+=`<div class="sg-i"><div class="sg-p"><div class="sg-av ${pAv[p]}">${pNm[p][0]}</div><div><div class="sg-nm">${pNm[p]}</div><div class="sg-rl">${pRl[p]}</div></div></div><button class="sg-btn ${bc}" onclick="doSign('${p}','${s.id}')">${sg?'&#10003; Signed off':'Sign off'}</button>${ts?`<div class="sg-ts">${ts}</div>`:''}</div>`;});h+=`</div>`;let gd2='lk',gt='',showUnlk=false;const nxt=stages[i+1];if(lk){gd2='lk';gt=`<strong>Stage locked</strong> \u2014 complete the previous stage and get all three sign-offs first`;}else if(!canSign){gt=`Complete all <strong>${c.tot-c.dn} remaining tasks</strong> before sign-off can begin`;}else if(sgnCnt<3){gd2='pt';const rem=['z','n','s'].filter(p=>!isSgn(s.id,p)).map(p=>pNm[p]).join(', ');gt=`${sgnCnt}/3 signed \u2014 waiting on <strong>${rem}</strong>`;}else if(!dn){gd2='op';gt='All 3 sign-offs complete \u2014 <strong>ready to unlock next stage</strong>';if(nxt)showUnlk=true;}else{gd2='op';gt='<strong>Stage complete</strong> \u2014 next stage unlocked';}h+=`<div class="gb"><div class="gd2 ${gd2}"></div><div class="gt">${gt}</div><button class="ub${showUnlk?' on':''}" onclick="doUnlock('${s.id}','${nxt?.id||''}')">Unlock stage ${i+2} &#8594;</button></div></div>`;h+=`</div></div>`;});const cards=MC[CUR];h+=`<div class="mc-sec"><div class="mc-hdr">Training Modules <span>\u2014 THAT TURN YOU INTO A \u00a320K+ PER MONTH BILLER</span></div><div class="mc-sub">What ${ti} will master \u2014 and exactly why it matters commercially.</div><div class="mc-grid">`;cards.forEach(m=>{h+=`<div class="mc"><div class="mc-top"><span class="mc-ic">${m.ic}</span><div class="mc-ti">${m.ti}</div><span class="mc-tm">${m.tm}</span></div><div class="mc-lrn"><strong>What ${ti} masters:</strong> ${m.lrn}</div><div class="mc-com">&#128176; ${m.com}</div><div class="mc-ms">&#127919; <strong>Milestone:</strong> ${m.ms}</div><button class="mc-btn" onclick="goModule('${m.id}')">Open full module &#8594;</button></div>`;});h+=`</div></div>`;document.getElementById('plan-main').innerHTML=h;stages.forEach(s=>{const el=document.getElementById(s.id);if(el)el.classList.add('op');});}
 function toggleStage(id){const el=document.getElementById(id);if(el)el.classList.toggle('op');}
 function scrollToStage(id){const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
-function doCheck(tid,sid){S[k(tid)]=!S[k(tid)];sv();const row=document.getElementById('tr-'+tid);if(row){row.classList.toggle('dn',!!S[k(tid)]);const box=row.querySelector('.ck');if(box)box.classList.toggle('on',!!S[k(tid)]);}render();const el=document.getElementById(sid);if(el)el.classList.add('op');if(S[k(tid)])showToast('&#10003; Task complete','Speed is everything \u2014 keep going.');}
-function doSign(p,sid){const s=STAGES[CUR].find(x=>x.id===sid);if(!s||isSgn(sid,p)||!allDone(s))return;S[k('so_'+sid+'_'+p)]=true;const now=new Date();S[k('ts_'+sid+'_'+p)]=now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});sv();const nm={z:'Zac',n:'Nick',s:'Steve'}[p];showToast(`&#9997; ${nm} signed off`,'Sign-off recorded and timestamped.');render();const el=document.getElementById(sid);if(el)el.classList.add('op');}
-function doUnlock(sid,nid){if(!allSgn(sid))return;S[k('ul_'+sid)]=true;sv();showToast('&#128640; Next stage unlocked!','All three sign-offs accepted.');render();if(nid)setTimeout(()=>{const el=document.getElementById(nid);if(el){el.classList.add('op');el.scrollIntoView({behavior:'smooth',block:'start'});}},300);}
+async function doCheck(tid,sid){
+  const key=k(tid);
+  S[key]=!S[key];
+  const row=document.getElementById('tr-'+tid);
+  if(row){row.classList.toggle('dn',!!S[key]);const box=row.querySelector('.ck');if(box)box.classList.toggle('on',!!S[key]);}
+  render();
+  const el=document.getElementById(sid);if(el)el.classList.add('op');
+  if(S[key])showToast('&#10003; Task complete','Speed is everything \u2014 keep going.');
+  await sbUpsert(key,S[key]);
+}
+async function doSign(p,sid){
+  const s=STAGES[CUR].find(x=>x.id===sid);
+  if(!s||isSgn(sid,p)||!allDone(s))return;
+  const soKey=k('so_'+sid+'_'+p);
+  const tsKey=k('ts_'+sid+'_'+p);
+  S[soKey]=true;
+  const now=new Date();
+  const ts=now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  S[tsKey]=ts;
+  const nm={z:'Zac',n:'Nick',s:'Steve'}[p];
+  showToast(`&#9997; ${nm} signed off`,'Sign-off recorded and timestamped.');
+  render();
+  const el=document.getElementById(sid);if(el)el.classList.add('op');
+  await sbUpsert(soKey,true);
+  await sbUpsert(tsKey,ts);
+}
+async function doUnlock(sid,nid){
+  if(!allSgn(sid))return;
+  const key=k('ul_'+sid);
+  S[key]=true;
+  showToast('&#128640; Next stage unlocked!','All three sign-offs accepted.');
+  render();
+  await sbUpsert(key,true);
+  if(nid)setTimeout(()=>{const el=document.getElementById(nid);if(el){el.classList.add('op');el.scrollIntoView({behavior:'smooth',block:'start'});}},300);
+}
 function setTrainee(name){CUR=name;document.getElementById('btn-a').classList.toggle('on',name==='aya');document.getElementById('btn-j').classList.toggle('on',name==='jade');render();}
-function doReset(){if(!confirm('Reset ALL progress for '+(CUR==='aya'?'Aya':'Jade')+'? Cannot be undone.'))return;Object.keys(S).forEach(key=>{if(key.startsWith(CUR+'_'))delete S[key];});sv();render();showToast('&#8635; Progress reset','Training plan cleared.');}
+async function doReset(){
+  if(!confirm('Reset ALL progress for '+(CUR==='aya'?'Aya':'Jade')+'? Cannot be undone.'))return;
+  Object.keys(S).forEach(key=>{if(key.startsWith(CUR+'_'))delete S[key];});
+  render();
+  showToast('&#8635; Progress reset','Training plan cleared.');
+  await sbDelete(CUR+'_');
+}
 let _tt;
 function showToast(title,body){const el=document.getElementById('toast');document.getElementById('toast-t').textContent=title;document.getElementById('toast-b').textContent=body;el.classList.add('on');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('on'),3000);}
-ld();render();setMod('cv-library',document.querySelector('.mn-btn'));
+// Async init: load from Supabase then render, then start polling
+(async()=>{
+  await ld();
+  render();
+  setMod('cv-library',document.querySelector('.mn-btn'));
+  startPolling();
+})();
 </script>
 </body>
 </html>
