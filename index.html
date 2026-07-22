@@ -913,44 +913,47 @@ let CUR='aya',S={};
 // ── SUPABASE SHARED STATE ────────────────────────────────────────────────────
 const SB_URL='https://kdorepgtvgwumdggjzqm.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkb3JlcGd0dmd3dW1kZ2dqenFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3OTI4MTksImV4cCI6MjA4NzM2ODgxOX0.bv0NLZujyaGPfvOinVq_zeuED0RcReVLupoQlP-3voI';
-const SB_TABLE='training_progress';
-
-async function sbFetch(method,body){
-  const opts={method,headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}};
-  if(body)opts.body=JSON.stringify(body);
-  const res=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?select=*',opts);
-  return res.ok?res.json():null;
-}
-async function sbUpsert(key,val){
-  await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'resolution=merge-duplicates'},
-    body:JSON.stringify({key,value:JSON.stringify(val)})
-  });
-}
-async function sbDelete(prefix){
-  await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?key=like.'+encodeURIComponent(prefix+'%'),{
-    method:'DELETE',
-    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
-  });
-}
+const SB_HDR={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
 
 async function ld(){
   try{
-    const res=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?select=key,value',{
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    const res=await fetch(SB_URL+'/rest/v1/training_progress?select=item_id,checked,checked_at',{headers:SB_HDR});
+    if(!res.ok){console.warn('Supabase load failed',res.status,await res.text());return;}
+    const rows=await res.json();
+    S={};
+    rows.forEach(r=>{
+      // checked booleans
+      S[r.item_id]=r.checked;
+      // store timestamp if present (for sign-off timestamps)
+      if(r.checked_at)S[r.item_id+'__ts']=r.checked_at;
     });
-    if(res.ok){
-      const rows=await res.json();
-      S={};
-      rows.forEach(r=>{try{S[r.key]=JSON.parse(r.value);}catch(e){S[r.key]=r.value;}});
-    }
   }catch(e){console.warn('Supabase load failed',e);}
 }
 
-async function sv(){} // no-op: writes now happen per-action
+async function sbSet(itemId, checked){
+  await fetch(SB_URL+'/rest/v1/training_progress',{
+    method:'POST',
+    headers:{...SB_HDR,'Prefer':'resolution=merge-duplicates'},
+    body:JSON.stringify({item_id:itemId,checked:checked,checked_at:new Date().toISOString()})
+  });
+}
 
-// Real-time polling: every 8 seconds re-sync state from Supabase
+async function sbDeletePrefix(prefix){
+  // fetch all keys matching prefix then delete
+  const res=await fetch(SB_URL+'/rest/v1/training_progress?select=item_id',{headers:SB_HDR});
+  if(!res.ok)return;
+  const rows=await res.json();
+  const toDelete=rows.filter(r=>r.item_id.startsWith(prefix)).map(r=>r.item_id);
+  for(const id of toDelete){
+    await fetch(SB_URL+'/rest/v1/training_progress?item_id=eq.'+encodeURIComponent(id),{
+      method:'DELETE',headers:SB_HDR
+    });
+  }
+}
+
+async function sv(){}
+
+// Poll every 8s and re-render if state changed
 let _pollTimer=null;
 function startPolling(){
   if(_pollTimer)return;
@@ -989,7 +992,7 @@ async function doCheck(tid,sid){
   render();
   const el=document.getElementById(sid);if(el)el.classList.add('op');
   if(S[key])showToast('&#10003; Task complete','Speed is everything \u2014 keep going.');
-  await sbUpsert(key,S[key]);
+  await sbSet(key,!!S[key]);
 }
 async function doSign(p,sid){
   const s=STAGES[CUR].find(x=>x.id===sid);
@@ -1004,8 +1007,8 @@ async function doSign(p,sid){
   showToast(`&#9997; ${nm} signed off`,'Sign-off recorded and timestamped.');
   render();
   const el=document.getElementById(sid);if(el)el.classList.add('op');
-  await sbUpsert(soKey,true);
-  await sbUpsert(tsKey,ts);
+  await sbSet(soKey,true);
+  await sbSet(tsKey+'_str',ts);
 }
 async function doUnlock(sid,nid){
   if(!allSgn(sid))return;
@@ -1013,7 +1016,7 @@ async function doUnlock(sid,nid){
   S[key]=true;
   showToast('&#128640; Next stage unlocked!','All three sign-offs accepted.');
   render();
-  await sbUpsert(key,true);
+  await sbSet(key,true);
   if(nid)setTimeout(()=>{const el=document.getElementById(nid);if(el){el.classList.add('op');el.scrollIntoView({behavior:'smooth',block:'start'});}},300);
 }
 function setTrainee(name){CUR=name;document.getElementById('btn-a').classList.toggle('on',name==='aya');document.getElementById('btn-j').classList.toggle('on',name==='jade');render();}
@@ -1022,17 +1025,11 @@ async function doReset(){
   Object.keys(S).forEach(key=>{if(key.startsWith(CUR+'_'))delete S[key];});
   render();
   showToast('&#8635; Progress reset','Training plan cleared.');
-  await sbDelete(CUR+'_');
+  await sbDeletePrefix(CUR+'_');
 }
 let _tt;
 function showToast(title,body){const el=document.getElementById('toast');document.getElementById('toast-t').textContent=title;document.getElementById('toast-b').textContent=body;el.classList.add('on');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('on'),3000);}
-// Async init: load from Supabase then render, then start polling
-(async()=>{
-  await ld();
-  render();
-  setMod('cv-library',document.querySelector('.mn-btn'));
-  startPolling();
-})();
+(async()=>{await ld();render();setMod('cv-library',document.querySelector('.mn-btn'));startPolling();})();
 </script>
 </body>
 </html>
