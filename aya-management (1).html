@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Syntech — Aya Daily Tracker</title>
+<style>
+:root{--r:#E8302A;--k:#0A0A0A;--s:#111;--s2:#1A1A1A;--s3:#222;--b:rgba(255,255,255,0.07);--bs:rgba(255,255,255,0.13);--t:#F0F0F0;--tm:#888;--td:#555;--g:#00C853;--a:#FFAA00;--f:'Inter',-apple-system,sans-serif;--m:'JetBrains Mono',monospace;--rad:8px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--k);color:var(--t);font-family:var(--f);font-size:14px;line-height:1.6;min-height:100vh;}
+
+/* Header */
+.hd{background:#000;border-bottom:2px solid var(--r);position:sticky;top:0;z-index:100;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;}
+.hd-left{display:flex;flex-direction:column;gap:1px;}
+.hd-title{font-size:13px;font-weight:700;letter-spacing:.12em;color:#fff;text-transform:uppercase;}
+.hd-sub{font-size:11px;color:var(--tm);}
+.hd-date{font-size:13px;font-weight:600;color:var(--r);}
+
+/* Week nav */
+.week-bar{background:var(--s);border-bottom:1px solid var(--b);padding:10px 24px;display:flex;gap:6px;overflow-x:auto;}
+.wday{padding:5px 14px;border-radius:20px;border:1px solid var(--b);font-size:12px;cursor:pointer;white-space:nowrap;color:var(--tm);transition:all .15s;}
+.wday:hover{border-color:var(--bs);color:var(--t);}
+.wday.on{background:var(--r);border-color:var(--r);color:#fff;font-weight:600;}
+.wday.has{border-color:rgba(0,200,83,0.35);color:var(--g);}
+.wday.today-chip{border-color:rgba(232,48,42,0.3);}
+
+.wrap{max-width:880px;margin:0 auto;padding:24px 20px;}
+
+/* Role banner */
+.role-banner{background:rgba(232,48,42,0.07);border:1px solid rgba(232,48,42,0.18);border-radius:var(--rad);padding:10px 16px;margin-bottom:20px;font-size:12px;color:var(--tm);line-height:1.8;}
+.role-banner strong{color:var(--t);}
+
+/* Summary tiles */
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.sm{background:var(--s);border:1px solid var(--b);border-radius:var(--rad);padding:12px 14px;}
+.sm-n{font-size:28px;font-weight:800;font-family:var(--m);line-height:1;}
+.sm-l{font-size:10px;color:var(--tm);margin-top:3px;text-transform:uppercase;letter-spacing:.05em;}
+.sm.green .sm-n{color:var(--g);}
+.sm.amber .sm-n{color:var(--a);}
+.sm.red .sm-n{color:var(--r);}
+.sm.blue .sm-n{color:#378ADD;}
+
+/* Cards */
+.card{background:var(--s);border:1px solid var(--b);border-radius:var(--rad);margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:11px 16px;border-bottom:1px solid var(--b);display:flex;align-items:center;gap:10px;}
+.card-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.card-title{font-size:13px;font-weight:600;}
+.card-hint{font-size:11px;color:var(--td);margin-left:auto;}
+.card-body{padding:14px 16px;}
+
+/* Inputs */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.field:last-child{margin-bottom:0;}
+.label{font-size:11px;color:var(--tm);font-weight:500;text-transform:uppercase;letter-spacing:.06em;}
+input[type=number].inp,textarea.inp{background:var(--s2);border:1px solid var(--bs);border-radius:var(--rad);color:var(--t);padding:9px 12px;font-size:13px;font-family:var(--f);width:100%;}
+input[type=number].inp{font-family:var(--m);font-size:18px;font-weight:700;width:120px;}
+input[type=number].inp:focus,textarea.inp:focus{outline:none;border-color:var(--r);}
+textarea.inp{resize:vertical;min-height:76px;font-size:12px;line-height:1.6;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+/* Call bar */
+.call-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.call-big{font-size:56px;font-weight:800;font-family:var(--m);line-height:1;min-width:80px;}
+.call-right{flex:1;min-width:180px;}
+.call-bar{height:10px;border-radius:5px;background:var(--s3);overflow:hidden;margin-bottom:8px;}
+.call-fill{height:100%;border-radius:5px;transition:width .35s ease,background .2s;}
+.thresh{display:flex;gap:14px;}
+.thresh span{font-size:11px;color:var(--td);display:flex;align-items:center;gap:4px;}
+.thresh-dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
+.call-inp-row{margin-top:12px;display:flex;align-items:center;gap:10px;}
+
+/* Support flags */
+.flag-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:24px;}
+.flag{background:rgba(232,48,42,0.1);border:1px solid rgba(232,48,42,0.28);color:#ff8a80;border-radius:4px;padding:3px 10px;font-size:11px;display:flex;align-items:center;gap:6px;}
+.flag-x{cursor:pointer;color:var(--td);font-size:12px;line-height:1;}
+.flag-x:hover{color:var(--r);}
+.flag-none{font-size:12px;color:var(--td);}
+.add-row{display:flex;gap:8px;}
+.add-inp{flex:1;background:var(--s2);border:1px solid var(--bs);border-radius:var(--rad);color:var(--t);padding:7px 12px;font-size:12px;font-family:var(--f);}
+.add-inp:focus{outline:none;border-color:var(--r);}
+.add-btn{background:var(--r);border:none;color:#fff;padding:7px 14px;border-radius:var(--rad);cursor:pointer;font-size:12px;font-family:var(--f);font-weight:600;}
+
+/* Job board confidence */
+.jb-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.jb-item{background:var(--s2);border:1px solid var(--b);border-radius:var(--rad);padding:10px 12px;}
+.jb-label{font-size:11px;color:var(--tm);margin-bottom:6px;}
+.jb-btns{display:flex;gap:5px;}
+.jb-btn{flex:1;padding:5px 2px;border-radius:5px;border:1px solid var(--bs);background:transparent;color:var(--tm);font-size:11px;cursor:pointer;font-family:var(--f);transition:all .15s;text-align:center;}
+.jb-btn.g{background:rgba(0,200,83,0.14);border-color:var(--g);color:var(--g);}
+.jb-btn.a{background:rgba(255,170,0,0.14);border-color:var(--a);color:var(--a);}
+.jb-btn.r{background:rgba(232,48,42,0.14);border-color:var(--r);color:var(--r);}
+
+
+
+/* Save btn */
+.save-row{display:flex;justify-content:flex-end;margin-top:10px;}
+.save-btn{background:var(--r);border:none;color:#fff;padding:8px 20px;border-radius:var(--rad);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--f);}
+.save-btn:hover{background:#c0392b;}
+
+/* Ownership pill */
+.own-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--tm);margin-left:auto;}
+.own-dot{width:6px;height:6px;border-radius:50%;}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--s2);border:1px solid var(--bs);border-radius:var(--rad);padding:12px 18px;font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;min-width:220px;}
+.toast.on{opacity:1;transform:translateY(0);}
+.toast-t{font-weight:600;margin-bottom:2px;}
+.toast-s{font-size:11px;color:var(--tm);}
+
+.sync-badge{font-size:10px;color:var(--td);margin-left:8px;}
+
+.welcome{background:rgba(232,48,42,0.06);border-left:3px solid var(--r);border-radius:0 var(--rad) var(--rad) 0;padding:14px 20px;margin-bottom:20px;}
+.welcome-quote{font-size:13px;line-height:1.75;color:var(--t);font-style:italic;}
+.welcome-attr{font-size:11px;color:var(--r);font-weight:600;margin-top:6px;letter-spacing:.06em;text-transform:uppercase;}
+.wr-lock{background:rgba(255,170,0,0.06);border:1px solid rgba(255,170,0,0.2);border-radius:var(--rad);padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--a);}
+.wr-lock-icon{font-size:20px;}
+.wr-section{margin-bottom:16px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rad);overflow:hidden;}
+.wr-section-hd{padding:10px 14px;border-bottom:1px solid var(--b);display:flex;align-items:center;gap:8px;}
+.wr-section-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.wr-section-name{font-size:12px;font-weight:700;}
+.wr-section-role{font-size:11px;color:var(--td);margin-left:4px;}
+.wr-saved-badge{margin-left:auto;font-size:10px;color:var(--g);font-weight:600;display:none;}
+.wr-saved-badge.on{display:block;}
+.wr-fields{padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+.wr-field{display:flex;flex-direction:column;gap:4px;}
+.wr-label{font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:.06em;font-weight:500;}
+textarea.wr-inp{background:var(--s3);border:1px solid var(--bs);border-radius:var(--rad);color:var(--t);padding:8px 12px;font-size:12px;font-family:var(--f);resize:vertical;min-height:64px;line-height:1.55;width:100%;}
+textarea.wr-inp:focus{outline:none;border-color:var(--r);}
+.wr-save-row{display:flex;justify-content:flex-end;padding:0 14px 12px;}
+.wr-week-banner{background:rgba(0,200,83,0.07);border:1px solid rgba(0,200,83,0.2);border-radius:var(--rad);padding:10px 16px;margin-bottom:16px;font-size:12px;color:var(--g);display:flex;align-items:center;gap:10px;}
+@media(max-width:620px){
+  .summary{grid-template-columns:repeat(2,1fr);}
+  .row2{grid-template-columns:1fr;}
+  .jb-grid{grid-template-columns:1fr;}
+  .cmt-add{grid-template-columns:1fr;}
+  .post-btn{width:100%;}
+}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="hd-left">
+    <div class="hd-title">Syntech — Aya Daily Tracker</div>
+    <div class="hd-sub">Jo &amp; Zac — joint oversight &bull; Nick &amp; Steve — visibility</div>
+  </div>
+  <div class="hd-date" id="hd-date"></div>
+</div>
+
+<div class="week-bar" id="week-bar"></div>
+
+<div class="wrap">
+
+  <div class="role-banner">
+    <strong>Active roles:</strong> Fitter/Assembler AM &amp; PM &bull; TIG Welder AM &bull; CNC Machinist PM — Sterling Thermal Technology, Aylesbury HP19 &nbsp;|&nbsp;
+    <strong>Client:</strong> Sterling TT — bespoke heat exchangers, defence/energy/marine since 1904
+  </div>
+
+  <!-- Welcome -->
+  <div class="welcome">
+    <div class="welcome-quote">&#8220;You are building the foundations of a £20k+ per month billing career. That doesn&#8217;t happen by accident &#8212; it happens through daily discipline, genuine commitment, and refusing to take shortcuts. Every call, every CV, every hour of self-learning is a brick in that foundation. Lay them well.&#8221;</div>
+    <div class="welcome-attr">— Syntech Recruitment</div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary">
+    <div class="sm" id="tile-calls"><div class="sm-n" id="tile-calls-n">—</div><div class="sm-l">Calls</div></div>
+    <div class="sm blue"><div class="sm-n" id="tile-cvs">—</div><div class="sm-l">CVs submitted</div></div>
+    <div class="sm blue"><div class="sm-n" id="tile-iv">—</div><div class="sm-l">Interviews</div></div>
+    <div class="sm blue"><div class="sm-n" id="tile-learn">—</div><div class="sm-l">Self-learning logged</div></div>
+  </div>
+
+  <!-- Activity: Calls -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-dot" style="background:var(--g)"></div>
+      <div class="card-title">Call Activity</div>
+      <div class="card-hint">40+ &#9679; 30–39 &#9679; &lt;20</div>
+      <div class="own-pill"><div class="own-dot" style="background:#f06292"></div>Jo &nbsp;<div class="own-dot" style="background:#64b5f6"></div>Zac</div>
+    </div>
+    <div class="card-body">
+      <div class="call-wrap">
+        <div class="call-big" id="call-big">0</div>
+        <div class="call-right">
+          <div class="call-bar"><div class="call-fill" id="call-fill" style="width:0%;background:var(--r)"></div></div>
+          <div class="thresh">
+            <span><span class="thresh-dot" style="background:var(--r)"></span>&lt;20 red</span>
+            <span><span class="thresh-dot" style="background:var(--a)"></span>30 amber</span>
+            <span><span class="thresh-dot" style="background:var(--g)"></span>40 green</span>
+          </div>
+        </div>
+      </div>
+      <div class="call-inp-row">
+        <div class="label">Calls made today</div>
+        <input type="number" class="inp" id="calls-inp" min="0" max="250" placeholder="0" oninput="liveCall(this.value)">
+      </div>
+      <div class="save-row"><button class="save-btn" onclick="save('calls')">Save</button></div>
+    </div>
+  </div>
+
+  <!-- Outcomes -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-dot" style="background:#378ADD"></div>
+      <div class="card-title">Daily Outcomes</div>
+      <div class="own-pill"><div class="own-dot" style="background:#f06292"></div>Jo &nbsp;<div class="own-dot" style="background:#64b5f6"></div>Zac</div>
+    </div>
+    <div class="card-body">
+      <div class="row2">
+        <div class="field">
+          <div class="label">CVs submitted</div>
+          <input type="number" class="inp" id="cvs-inp" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <div class="label">Interviews booked</div>
+          <input type="number" class="inp" id="iv-inp" min="0" placeholder="0">
+        </div>
+      </div>
+      <div class="save-row"><button class="save-btn" onclick="save('outcomes')">Save</button></div>
+    </div>
+  </div>
+
+  <!-- Self-Learning -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-dot" style="background:#D4537E"></div>
+      <div class="card-title">Self-Learning — Job Roles &amp; Companies</div>
+      <div class="own-pill"><div class="own-dot" style="background:#ffd54f"></div>Aya &nbsp;<div class="own-dot" style="background:#f06292"></div>Jo</div>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <div class="label">What did Aya research today about live roles, clients or sectors?</div>
+        <textarea class="inp" id="learn-inp" placeholder="e.g. Researched Sterling Thermal Technology — understood what bespoke heat exchangers are, who their defence/energy/marine clients are. Read the Fitter/Assembler spec in detail, looked up what HP19 shift patterns look like..."></textarea>
+      </div>
+      <div class="save-row"><button class="save-btn" onclick="save('learning')">Save</button></div>
+    </div>
+  </div>
+
+  <!-- Support Needed -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-dot" style="background:var(--r)"></div>
+      <div class="card-title">Support Required / Struggling With</div>
+      <div class="card-hint">Goes to Zac first</div>
+      <div class="own-pill"><div class="own-dot" style="background:#f06292"></div>Jo &nbsp;<div class="own-dot" style="background:#ffd54f"></div>Aya</div>
+    </div>
+    <div class="card-body">
+      <div class="flag-wrap" id="flags"></div>
+      <div class="add-row">
+        <input class="add-inp" id="flag-inp" type="text" placeholder="e.g. Atlas pipeline stages, boolean on CV Library, understanding Part 145..." onkeydown="if(event.key==='Enter')addFlag()">
+        <button class="add-btn" onclick="addFlag()">Add</button>
+      </div>
+      <div class="save-row"><button class="save-btn" onclick="save('support')">Save</button></div>
+    </div>
+  </div>
+
+  <!-- Job Board Knowledge -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-dot" style="background:var(--a)"></div>
+      <div class="card-title">Job Board Knowledge</div>
+      <div class="card-hint">Rate today's confidence</div>
+      <div class="own-pill"><div class="own-dot" style="background:#f06292"></div>Jo &nbsp;<div class="own-dot" style="background:#64b5f6"></div>Zac</div>
+    </div>
+    <div class="card-body">
+      <div class="jb-grid" id="jb-grid"></div>
+      <div class="save-row" style="margin-top:12px;"><button class="save-btn" onclick="save('jobboards')">Save</button></div>
+    </div>
+  </div>
+
+
+
+  <!-- Weekly Review — Fridays only -->
+  <div id="wr-container"></div>
+
+</div>
+
+<div class="toast" id="toast">
+  <div class="toast-t" id="toast-t"></div>
+  <div class="toast-s" id="toast-s"></div>
+</div>
+
+<script>
+const SB_URL='https://kdorepgtvgwumdggjzqm.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkb3JlcGd0dmd3dW1kZ2dqenFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3OTI4MTksImV4cCI6MjA4NzM2ODgxOX0.bv0NLZujyaGPfvOinVq_zeuED0RcReVLupoQlP-3voI';
+const HDR={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+
+const JB=[
+  {id:'boolean',label:'Boolean Search'},
+  {id:'watchdogs',label:'CV Library Watchdogs'},
+  {id:'savedsearch',label:'Saved Searches'},
+  {id:'cvalerts',label:'CV Alerts'},
+  {id:'xray',label:'Google X-Ray'},
+  {id:'linkedin',label:'LinkedIn Boolean'},
+];
+
+let CUR=(function(){const t=todayStr();const start='2026-07-27';return t<start?start:t;})(),D={},flags=[];
+
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function fmtFull(s){return new Date(s+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
+function fmtShort(s){return new Date(s+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});}
+
+// ── Week bar ──────────────────────────────────────────────────────────────────
+function buildWeekBar(){
+  const bar=document.getElementById('week-bar');
+  const today=todayStr();
+  // Start from Monday 27th July 2026 — Aya's first day
+  const start=new Date('2026-07-27T12:00:00');
+  const end=new Date(today+'T12:00:00');
+  const days=[];
+  for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+    days.push(d.toISOString().slice(0,10));
+  }
+  bar.innerHTML=days.map(d=>{
+    let cls='wday';
+    if(d===CUR)cls+=' on';
+    if(d===today)cls+=' today-chip';
+    return `<div class="${cls}" id="wd-${d}" onclick="jump('${d}')">${fmtShort(d)}${d===today?' (today)':''}</div>`;
+  }).join('');
+}
+
+function jump(d){CUR=d;loadDay();}
+
+function markHas(d){
+  const el=document.getElementById('wd-'+d);
+  if(el&&!el.classList.contains('on'))el.classList.add('has');
+}
+
+// ── Supabase ──────────────────────────────────────────────────────────────────
+function sbKey(sec){return `${CUR}_${sec}`;}
+
+async function sbSave(sec,data){
+  try{
+    await fetch(SB_URL+'/rest/v1/aya_tracker',{
+      method:'POST',
+      headers:{...HDR,'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({key:sbKey(sec),value:JSON.stringify(data),updated_at:new Date().toISOString()})
+    });
+  }catch(e){console.warn('Save error',e);}
+}
+
+async function sbLoad(sec){
+  try{
+    const r=await fetch(SB_URL+`/rest/v1/aya_tracker?key=eq.${encodeURIComponent(sbKey(sec))}&select=value`,{headers:HDR});
+    if(!r.ok)return null;
+    const rows=await r.json();
+    return rows.length?JSON.parse(rows[0].value):null;
+  }catch(e){return null;}
+}
+
+// ── Save sections ─────────────────────────────────────────────────────────────
+async function save(sec){
+  let data={};
+  if(sec==='calls'){data={calls:parseInt(document.getElementById('calls-inp').value)||0};D.calls=data.calls;}
+  else if(sec==='outcomes'){data={cvs:parseInt(document.getElementById('cvs-inp').value)||0,iv:parseInt(document.getElementById('iv-inp').value)||0};Object.assign(D,data);}
+  else if(sec==='learning'){data={learning:document.getElementById('learn-inp').value.trim()};D.learning=data.learning;}
+  else if(sec==='support'){data={flags:[...flags]};D.flags=data.flags;}
+  else if(sec==='jobboards'){data={jb:D.jb||{}};} 
+  await sbSave(sec,data);
+  updateTiles();
+  showToast('Saved','Synced to all team members.');
+}
+
+// ── Load day ──────────────────────────────────────────────────────────────────
+async function loadDay(){
+  document.getElementById('hd-date').textContent=fmtFull(CUR);
+  // Update week bar active state
+  document.querySelectorAll('.wday').forEach(el=>el.classList.remove('on'));
+  const active=document.getElementById('wd-'+CUR);
+  if(active)active.classList.add('on');
+
+  D={};flags=[];comments=[];
+  const secs=['calls','outcomes','learning','support','jobboards'];
+  const res=await Promise.all(secs.map(s=>sbLoad(s)));
+  secs.forEach((s,i)=>{
+    if(res[i]){
+      Object.assign(D,res[i]);
+      if(s==='support'&&res[i].flags)flags=res[i].flags;
+      if(s==='jobboards'&&res[i].jb)D.jb=res[i].jb;
+      markHas(CUR);
+    }
+  });
+
+  // Populate inputs
+  const calls=D.calls||0;
+  document.getElementById('calls-inp').value=calls||'';
+  liveCall(calls);
+  document.getElementById('cvs-inp').value=D.cvs||'';
+  document.getElementById('iv-inp').value=D.iv||'';
+  document.getElementById('learn-inp').value=D.learning||'';
+
+  renderFlags();
+  renderJB();
+  updateTiles();
+  await renderWR();
+}
+
+// ── Live call bar ─────────────────────────────────────────────────────────────
+function liveCall(v){
+  const n=parseInt(v)||0;
+  document.getElementById('call-big').textContent=n;
+  const pct=Math.min(100,(n/40)*100);
+  const fill=document.getElementById('call-fill');
+  fill.style.width=pct+'%';
+  fill.style.background=n>=40?'var(--g)':n>=30?'var(--a)':'var(--r)';
+  const tile=document.getElementById('tile-calls');
+  tile.className='sm '+(n>=40?'green':n>=30?'amber':n>0?'red':'blue');
+  document.getElementById('tile-calls-n').textContent=n||'—';
+}
+
+// ── Tiles ─────────────────────────────────────────────────────────────────────
+function updateTiles(){
+  const c=D.calls||0;
+  document.getElementById('tile-calls-n').textContent=c||'—';
+  const tile=document.getElementById('tile-calls');
+  tile.className='sm '+(c>=40?'green':c>=30?'amber':c>0?'red':'blue');
+  document.getElementById('tile-cvs').textContent=D.cvs!==undefined&&D.cvs!==''?D.cvs:'—';
+  document.getElementById('tile-iv').textContent=D.iv!==undefined&&D.iv!==''?D.iv:'—';
+  document.getElementById('tile-learn').textContent=D.learning?'Yes':'—';
+}
+
+// ── Flags ─────────────────────────────────────────────────────────────────────
+function renderFlags(){
+  const el=document.getElementById('flags');
+  if(!flags.length){el.innerHTML='<span class="flag-none">Nothing flagged today</span>';return;}
+  el.innerHTML=flags.map((f,i)=>`<div class="flag">${f}<span class="flag-x" onclick="removeFlag(${i})">&#10005;</span></div>`).join('');
+}
+function addFlag(){
+  const inp=document.getElementById('flag-inp');
+  const v=inp.value.trim();if(!v)return;
+  flags.push(v);inp.value='';renderFlags();
+}
+function removeFlag(i){flags.splice(i,1);renderFlags();}
+
+// ── Job boards ────────────────────────────────────────────────────────────────
+function renderJB(){
+  const grid=document.getElementById('jb-grid');
+  const jb=D.jb||{};
+  grid.innerHTML=JB.map(j=>{
+    const v=jb[j.id]||'';
+    return `<div class="jb-item">
+      <div class="jb-label">${j.label}</div>
+      <div class="jb-btns">
+        <button class="jb-btn${v==='strong'?' g':''}" onclick="setJB('${j.id}','strong')">Strong</button>
+        <button class="jb-btn${v==='developing'?' a':''}" onclick="setJB('${j.id}','developing')">Developing</button>
+        <button class="jb-btn${v==='struggling'?' r':''}" onclick="setJB('${j.id}','struggling')">Struggling</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function setJB(id,val){
+  if(!D.jb)D.jb={};
+  D.jb[id]=val;
+  renderJB();
+}
+
+
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let _t;
+function showToast(title,sub){
+  const el=document.getElementById('toast');
+  document.getElementById('toast-t').textContent=title;
+  document.getElementById('toast-s').textContent=sub;
+  el.classList.add('on');clearTimeout(_t);
+  _t=setTimeout(()=>el.classList.remove('on'),2800);
+}
+
+// ── Weekly Review ────────────────────────────────────────────────────────────
+function getFriday(dateStr){
+  // Get the Friday of the week containing dateStr
+  const d=new Date(dateStr+'T12:00:00');
+  const day=d.getDay(); // 0=Sun,1=Mon...5=Fri,6=Sat
+  const diff=day===0?-2:day<=5?5-day:6; // days to nearest Friday (this week or next for Sat)
+  // Always go to the PAST Friday (end of the work week)
+  const fri=new Date(d);
+  if(day===6)fri.setDate(d.getDate()-1); // Sat -> previous Fri
+  else if(day===0)fri.setDate(d.getDate()-2); // Sun -> previous Fri
+  else fri.setDate(d.getDate()+(5-day));
+  return fri.toISOString().slice(0,10);
+}
+
+function isFriday(dateStr){
+  return new Date(dateStr+'T12:00:00').getDay()===5;
+}
+
+function fmtWeekOf(friStr){
+  const fri=new Date(friStr+'T12:00:00');
+  const mon=new Date(fri);mon.setDate(fri.getDate()-4);
+  return mon.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+
+const WR_REVIEWERS=[
+  {id:'zac',label:'Zac',role:'Delivery & Pitch Lead',color:'#64b5f6'},
+  {id:'jo',label:'Jo',role:'On-the-ground Manager',color:'#f06292'},
+  {id:'steve',label:'Steve',role:'Quality & BD Director',color:'#ef9a9a'},
+];
+
+const WR_FIELDS=[
+  {id:'goods',label:'What went well this week?'},
+  {id:'bads',label:'What needs to improve?'},
+  {id:'learnings',label:'Key learnings / observations'},
+  {id:'actions',label:'Actions for next week'},
+];
+
+let wrData={};
+
+async function loadWR(friStr){
+  try{
+    const r=await fetch(SB_URL+`/rest/v1/aya_tracker?key=eq.${encodeURIComponent('wr_'+friStr)}&select=value`,{headers:HDR});
+    if(!r.ok)return{};
+    const rows=await r.json();
+    return rows.length?JSON.parse(rows[0].value):{};
+  }catch(e){return{};}
+}
+
+async function saveWR(friStr,reviewerId){
+  const fields={};
+  WR_FIELDS.forEach(f=>{
+    const el=document.getElementById(`wr-${reviewerId}-${f.id}`);
+    if(el)fields[f.id]=el.value.trim();
+  });
+  if(!wrData[reviewerId])wrData[reviewerId]={};
+  Object.assign(wrData[reviewerId],fields);
+  try{
+    await fetch(SB_URL+'/rest/v1/aya_tracker',{
+      method:'POST',
+      headers:{...HDR,'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({key:'wr_'+friStr,value:JSON.stringify(wrData),updated_at:new Date().toISOString()})
+    });
+    const badge=document.getElementById('wr-badge-'+reviewerId);
+    if(badge){badge.classList.add('on');setTimeout(()=>badge.classList.remove('on'),3000);}
+    showToast('Weekly review saved','Visible to Zac, Jo and Steve.');
+  }catch(e){console.warn('WR save error',e);}
+}
+
+async function renderWR(){
+  const container=document.getElementById('wr-container');
+  if(!container)return;
+
+  // Determine the relevant Friday
+  const today=todayStr();
+  const isF=isFriday(CUR);
+  const friStr=getFriday(CUR);
+  const isPast=friStr<today&&!isF;
+  const isFuture=friStr>today;
+
+  // If viewing a day whose Friday hasn't happened yet
+  if(isFuture){
+    container.innerHTML=`<div class="card"><div class="card-hd"><div class="card-dot" style="background:var(--a)"></div><div class="card-title">Weekly Review</div></div><div class="card-body"><div class="wr-lock"><div class="wr-lock-icon">&#128274;</div><div>Weekly review unlocks on <strong>Friday</strong>. Check back then.</div></div></div></div>`;
+    return;
+  }
+
+  // Load saved data for this week's Friday
+  wrData=await loadWR(friStr);
+
+  const weekLabel=fmtWeekOf(friStr);
+  const friLabel=new Date(friStr+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+
+  let html=`<div class="card">
+    <div class="card-hd">
+      <div class="card-dot" style="background:var(--g)"></div>
+      <div class="card-title">Weekly Review — ${weekLabel}</div>
+      <div class="own-pill"><div class="own-dot" style="background:#64b5f6"></div>Zac &nbsp;<div class="own-dot" style="background:#f06292"></div>Jo &nbsp;<div class="own-dot" style="background:#ef9a9a"></div>Steve</div>
+    </div>
+    <div class="card-body">
+      <div class="wr-week-banner">&#128197; ${isF?'Today is review day — 10 minute Teams call with Zac, Jo and Steve':'Review week: '+friLabel}</div>`;
+
+  WR_REVIEWERS.forEach(rev=>{
+    const saved=wrData[rev.id]||{};
+    html+=`<div class="wr-section">
+      <div class="wr-section-hd">
+        <div class="wr-section-dot" style="background:${rev.color}"></div>
+        <span class="wr-section-name" style="color:${rev.color}">${rev.label}</span>
+        <span class="wr-section-role">${rev.role}</span>
+        <span class="wr-saved-badge" id="wr-badge-${rev.id}">&#10003; Saved</span>
+      </div>
+      <div class="wr-fields">`;
+    WR_FIELDS.forEach(f=>{
+      html+=`<div class="wr-field">
+        <div class="wr-label">${f.label}</div>
+        <textarea class="wr-inp" id="wr-${rev.id}-${f.id}" placeholder="${f.label}...">${saved[f.id]||''}</textarea>
+      </div>`;
+    });
+    html+=`</div><div class="wr-save-row"><button class="save-btn" onclick="saveWR('${friStr}','${rev.id}')">Save ${rev.label}'s review</button></div></div>`;
+  });
+
+  html+=`</div></div>`;
+  container.innerHTML=html;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async()=>{
+  buildWeekBar();
+  await loadDay();
+  // Auto-refresh every 20s
+  setInterval(async()=>{
+    const snap=JSON.stringify(D)+JSON.stringify(comments);
+    await loadDay();
+    if(JSON.stringify(D)+JSON.stringify(comments)!==snap)showToast('Updated','New entry from the team.');
+  },20000);
+})();
+</script>
+</body>
+</html>
