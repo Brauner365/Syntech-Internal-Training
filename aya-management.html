@@ -128,6 +128,11 @@ textarea.wr-inp{background:var(--s3);border:1px solid var(--bs);border-radius:va
 textarea.wr-inp:focus{outline:none;border-color:var(--r);}
 .wr-save-row{display:flex;justify-content:flex-end;padding:0 14px 12px;}
 .wr-week-banner{background:rgba(0,200,83,0.07);border:1px solid rgba(0,200,83,0.2);border-radius:var(--rad);padding:10px 16px;margin-bottom:16px;font-size:12px;color:var(--g);display:flex;align-items:center;gap:10px;}
+.autosave-bar{position:fixed;top:60px;right:0;left:0;height:2px;background:transparent;z-index:200;}
+.autosave-bar.saving{background:linear-gradient(90deg,transparent,var(--r),transparent);animation:sweep 1s ease;}
+@keyframes sweep{0%{background-position:-100%}100%{background-position:200%}}
+.as-indicator{position:fixed;bottom:24px;left:24px;font-size:11px;color:var(--td);transition:opacity .3s;}
+.as-indicator.on{color:var(--g);}
 @media(max-width:620px){
   .summary{grid-template-columns:repeat(2,1fr);}
   .row2{grid-template-columns:1fr;}
@@ -147,7 +152,9 @@ textarea.wr-inp:focus{outline:none;border-color:var(--r);}
   <div class="hd-date" id="hd-date"></div>
 </div>
 
+<div class="autosave-bar" id="as-bar"></div>
 <div class="week-bar" id="week-bar"></div>
+<div class="as-indicator" id="as-indicator">Saved</div>
 
 <div class="wrap">
 
@@ -192,9 +199,9 @@ textarea.wr-inp:focus{outline:none;border-color:var(--r);}
       </div>
       <div class="call-inp-row">
         <div class="label">Calls made today</div>
-        <input type="number" class="inp" id="calls-inp" min="0" max="250" placeholder="0" oninput="liveCall(this.value)">
+        <input type="number" class="inp" id="calls-inp" min="0" max="250" placeholder="0" oninput="liveCall(this.value);debounceSave('calls')">
       </div>
-      <div class="save-row"><button class="save-btn" onclick="save('calls')">Save</button></div>
+
     </div>
   </div>
 
@@ -209,14 +216,14 @@ textarea.wr-inp:focus{outline:none;border-color:var(--r);}
       <div class="row2">
         <div class="field">
           <div class="label">CVs submitted</div>
-          <input type="number" class="inp" id="cvs-inp" min="0" placeholder="0">
+          <input type="number" class="inp" id="cvs-inp" min="0" placeholder="0" oninput="debounceSave('outcomes')">
         </div>
         <div class="field">
           <div class="label">Interviews booked</div>
-          <input type="number" class="inp" id="iv-inp" min="0" placeholder="0">
+          <input type="number" class="inp" id="iv-inp" min="0" placeholder="0" oninput="debounceSave('outcomes')">
         </div>
       </div>
-      <div class="save-row"><button class="save-btn" onclick="save('outcomes')">Save</button></div>
+
     </div>
   </div>
 
@@ -230,9 +237,9 @@ textarea.wr-inp:focus{outline:none;border-color:var(--r);}
     <div class="card-body">
       <div class="field">
         <div class="label">What did Aya research today about live roles, clients or sectors?</div>
-        <textarea class="inp" id="learn-inp" placeholder="e.g. Researched Sterling Thermal Technology — understood what bespoke heat exchangers are, who their defence/energy/marine clients are. Read the Fitter/Assembler spec in detail, looked up what HP19 shift patterns look like..."></textarea>
+        <textarea class="inp" id="learn-inp" oninput="debounceSave('learning')" placeholder="e.g. Researched Sterling Thermal Technology — understood what bespoke heat exchangers are, who their defence/energy/marine clients are. Read the Fitter/Assembler spec in detail, looked up what HP19 shift patterns look like..."></textarea>
       </div>
-      <div class="save-row"><button class="save-btn" onclick="save('learning')">Save</button></div>
+
     </div>
   </div>
 
@@ -250,7 +257,7 @@ textarea.wr-inp:focus{outline:none;border-color:var(--r);}
         <input class="add-inp" id="flag-inp" type="text" placeholder="e.g. Atlas pipeline stages, boolean on CV Library, understanding Part 145..." onkeydown="if(event.key==='Enter')addFlag()">
         <button class="add-btn" onclick="addFlag()">Add</button>
       </div>
-      <div class="save-row"><button class="save-btn" onclick="save('support')">Save</button></div>
+
     </div>
   </div>
 
@@ -264,7 +271,7 @@ textarea.wr-inp:focus{outline:none;border-color:var(--r);}
     </div>
     <div class="card-body">
       <div class="jb-grid" id="jb-grid"></div>
-      <div class="save-row" style="margin-top:12px;"><button class="save-btn" onclick="save('jobboards')">Save</button></div>
+
     </div>
   </div>
 
@@ -272,6 +279,9 @@ textarea.wr-inp:focus{outline:none;border-color:var(--r);}
 
   <!-- Weekly Review — Fridays only -->
   <div id="wr-container"></div>
+
+  <!-- Monthly Review — last Friday of month -->
+  <div id="mr-container"></div>
 
 </div>
 
@@ -358,7 +368,7 @@ async function save(sec){
   else if(sec==='jobboards'){data={jb:D.jb||{}};} 
   await sbSave(sec,data);
   updateTiles();
-  showToast('Saved','Synced to all team members.');
+  showSaved();
 }
 
 // ── Load day ──────────────────────────────────────────────────────────────────
@@ -393,6 +403,7 @@ async function loadDay(){
   renderJB();
   updateTiles();
   await renderWR();
+  await renderMR();
 }
 
 // ── Live call bar ─────────────────────────────────────────────────────────────
@@ -587,6 +598,120 @@ async function renderWR(){
 
   html+=`</div></div>`;
   container.innerHTML=html;
+}
+
+// ── Auto-save debounce ────────────────────────────────────────────────────────
+const _saveTimers={};
+function debounceSave(sec){
+  clearTimeout(_saveTimers[sec]);
+  _saveTimers[sec]=setTimeout(()=>save(sec),1200);
+}
+
+// ── Monthly Review ────────────────────────────────────────────────────────────
+function getLastFridayOfMonth(dateStr){
+  const d=new Date(dateStr+'T12:00:00');
+  // Last day of month
+  const last=new Date(d.getFullYear(),d.getMonth()+1,0);
+  // Walk back to Friday
+  while(last.getDay()!==5)last.setDate(last.getDate()-1);
+  return last.toISOString().slice(0,10);
+}
+
+function isLastFridayOfMonth(dateStr){
+  return getLastFridayOfMonth(dateStr)===dateStr;
+}
+
+function fmtMonth(dateStr){
+  return new Date(dateStr+'T12:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+}
+
+let mrData={};
+
+async function loadMR(lfStr){
+  try{
+    const r=await fetch(SB_URL+`/rest/v1/aya_tracker?key=eq.${encodeURIComponent('mr_'+lfStr)}&select=value`,{headers:HDR});
+    if(!r.ok)return{};
+    const rows=await r.json();
+    return rows.length?JSON.parse(rows[0].value):{};
+  }catch(e){return{};}
+}
+
+async function saveMR(lfStr,reviewerId){
+  const fields={};
+  WR_FIELDS.forEach(f=>{
+    const el=document.getElementById(`mr-${reviewerId}-${f.id}`);
+    if(el)fields[f.id]=el.value.trim();
+  });
+  if(!mrData[reviewerId])mrData[reviewerId]={};
+  Object.assign(mrData[reviewerId],fields);
+  try{
+    await fetch(SB_URL+'/rest/v1/aya_tracker',{
+      method:'POST',
+      headers:{...HDR,'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({key:'mr_'+lfStr,value:JSON.stringify(mrData),updated_at:new Date().toISOString()})
+    });
+    const badge=document.getElementById('mr-badge-'+reviewerId);
+    if(badge){badge.classList.add('on');setTimeout(()=>badge.classList.remove('on'),3000);}
+    showToast('Monthly review saved','Visible to Zac, Jo and Steve.');
+  }catch(e){console.warn('MR save error',e);}
+}
+
+async function renderMR(){
+  const container=document.getElementById('mr-container');
+  if(!container)return;
+  const today=todayStr();
+  const lfStr=getLastFridayOfMonth(CUR);
+  const isLF=isLastFridayOfMonth(CUR)&&isFriday(CUR);
+  const isFuture=lfStr>today;
+  const monthLabel=fmtMonth(lfStr);
+  const lfLabel=new Date(lfStr+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+
+  if(isFuture&&!isLF){
+    container.innerHTML=`<div class="card"><div class="card-hd"><div class="card-dot" style="background:#378ADD"></div><div class="card-title">Monthly Review — ${monthLabel}</div></div><div class="card-body"><div class="wr-lock"><div class="wr-lock-icon">&#128274;</div><div>Monthly review unlocks on <strong>${lfLabel}</strong> — the last Friday of ${monthLabel}.</div></div></div></div>`;
+    return;
+  }
+
+  mrData=await loadMR(lfStr);
+
+  let html=`<div class="card">
+    <div class="card-hd">
+      <div class="card-dot" style="background:#378ADD"></div>
+      <div class="card-title">Monthly Review — ${monthLabel}</div>
+      <div class="own-pill"><div class="own-dot" style="background:#64b5f6"></div>Zac &nbsp;<div class="own-dot" style="background:#f06292"></div>Jo &nbsp;<div class="own-dot" style="background:#ef9a9a"></div>Steve</div>
+    </div>
+    <div class="card-body">
+      <div class="wr-week-banner" style="border-color:rgba(55,138,221,0.3);color:#64b5f6;background:rgba(55,138,221,0.07);">&#128197; ${isLF?'Today is monthly review day — end of month check-in with Zac, Jo and Steve':'Monthly review: '+lfLabel}</div>`;
+
+  WR_REVIEWERS.forEach(rev=>{
+    const saved=mrData[rev.id]||{};
+    html+=`<div class="wr-section">
+      <div class="wr-section-hd">
+        <div class="wr-section-dot" style="background:${rev.color}"></div>
+        <span class="wr-section-name" style="color:${rev.color}">${rev.label}</span>
+        <span class="wr-section-role">${rev.role}</span>
+        <span class="wr-saved-badge" id="mr-badge-${rev.id}">&#10003; Saved</span>
+      </div>
+      <div class="wr-fields">`;
+    WR_FIELDS.forEach(f=>{
+      html+=`<div class="wr-field">
+        <div class="wr-label">${f.label}</div>
+        <textarea class="wr-inp" id="mr-${rev.id}-${f.id}" placeholder="${f.label}...">${saved[f.id]||''}</textarea>
+      </div>`;
+    });
+    html+=`</div><div class="wr-save-row"><button class="save-btn" onclick="saveMR('${lfStr}','${rev.id}')">Save ${rev.label}'s review</button></div></div>`;
+  });
+
+  html+=`</div></div>`;
+  container.innerHTML=html;
+}
+
+// ── Auto-save visual feedback ─────────────────────────────────────────────────
+function showSaved(){
+  const ind=document.getElementById('as-indicator');
+  if(!ind)return;
+  ind.textContent='✓ Saved';
+  ind.classList.add('on');
+  setTimeout(()=>ind.classList.remove('on'),2000);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
