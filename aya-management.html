@@ -600,12 +600,8 @@ async function renderWR(){
   container.innerHTML=html;
 }
 
-// ── Auto-save debounce ────────────────────────────────────────────────────────
-const _saveTimers={};
-function debounceSave(sec){
-  clearTimeout(_saveTimers[sec]);
-  _saveTimers[sec]=setTimeout(()=>save(sec),1200);
-}
+// ── Auto-save instant ────────────────────────────────────────────────────────
+function debounceSave(sec){save(sec);}
 
 // ── Monthly Review ────────────────────────────────────────────────────────────
 function getLastFridayOfMonth(dateStr){
