@@ -439,9 +439,9 @@ function renderFlags(){
 function addFlag(){
   const inp=document.getElementById('flag-inp');
   const v=inp.value.trim();if(!v)return;
-  flags.push(v);inp.value='';renderFlags();
+  flags.push(v);inp.value='';renderFlags();save('support');
 }
-function removeFlag(i){flags.splice(i,1);renderFlags();}
+function removeFlag(i){flags.splice(i,1);renderFlags();save('support');}
 
 // ── Job boards ────────────────────────────────────────────────────────────────
 function renderJB(){
@@ -463,6 +463,7 @@ function setJB(id,val){
   if(!D.jb)D.jb={};
   D.jb[id]=val;
   renderJB();
+  save('jobboards');
 }
 
 
