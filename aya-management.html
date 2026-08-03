@@ -591,10 +591,10 @@ async function renderWR(){
     WR_FIELDS.forEach(f=>{
       html+=`<div class="wr-field">
         <div class="wr-label">${f.label}</div>
-        <textarea class="wr-inp" id="wr-${rev.id}-${f.id}" placeholder="${f.label}...">${saved[f.id]||''}</textarea>
+        <textarea class="wr-inp" id="wr-${rev.id}-${f.id}" oninput="saveWR('${friStr}','${rev.id}')" placeholder="${f.label}...">${saved[f.id]||''}</textarea>
       </div>`;
     });
-    html+=`</div><div class="wr-save-row"><button class="save-btn" onclick="saveWR('${friStr}','${rev.id}')">Save ${rev.label}'s review</button></div></div>`;
+    html+=`</div></div>`;
   });
 
   html+=`</div></div>`;
@@ -692,10 +692,10 @@ async function renderMR(){
     WR_FIELDS.forEach(f=>{
       html+=`<div class="wr-field">
         <div class="wr-label">${f.label}</div>
-        <textarea class="wr-inp" id="mr-${rev.id}-${f.id}" placeholder="${f.label}...">${saved[f.id]||''}</textarea>
+        <textarea class="wr-inp" id="mr-${rev.id}-${f.id}" oninput="saveMR('${lfStr}','${rev.id}')" placeholder="${f.label}...">${saved[f.id]||''}</textarea>
       </div>`;
     });
-    html+=`</div><div class="wr-save-row"><button class="save-btn" onclick="saveMR('${lfStr}','${rev.id}')">Save ${rev.label}'s review</button></div></div>`;
+    html+=`</div></div>`;
   });
 
   html+=`</div></div>`;
@@ -715,11 +715,13 @@ function showSaved(){
 (async()=>{
   buildWeekBar();
   await loadDay();
-  // Auto-refresh every 20s
+  // Auto-refresh every 20s — pauses if a review field is focused
   setInterval(async()=>{
-    const snap=JSON.stringify(D)+JSON.stringify(comments);
+    const active=document.activeElement;
+    if(active&&(active.id.startsWith('wr-')||active.id.startsWith('mr-')))return;
+    const snap=JSON.stringify(D);
     await loadDay();
-    if(JSON.stringify(D)+JSON.stringify(comments)!==snap)showToast('Updated','New entry from the team.');
+    if(JSON.stringify(D)!==snap)showToast('Updated','New entry from the team.');
   },20000);
 })();
 </script>
